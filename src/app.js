@@ -1,6 +1,8 @@
 const express = require("express");
 const connectDB = require("./config/database");
 const User = require("./models/user");
+const { validateSignUpData } = require("./utils/validation");
+const bcrypt = require("bcrypt");
 
 const app = express();
 
@@ -42,13 +44,46 @@ app.get("/feed", async (req, res) => {
 });
 
 app.post("/signup", async (req, res) => {
-  const user = new User(req.body);
-
   try {
+    validateSignUpData(req);
+
+    const { firstName, lastName, emailId, password } = req.body;
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = new User({
+      firstName,
+      lastName,
+      emailId,
+      password: passwordHash,
+    });
+
     await user.save();
     res.send("User added succesfully!!");
-  } catch (error) {
-    res.status(400).send("unable to store user data" + error);
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
+  }
+});
+
+app.post("/login", async (req, res) => {
+  
+  try {
+    const { emailId, password } = req.body;
+    const user = await User.findOne({ emailId: emailId });
+
+    if (!user) {
+      throw new Error("Invalid credentials");
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      throw new Error("Invalid credentials");
+    } else {
+      res.send("Login Successfull");
+    }
+  } catch (err) {
+    res.status(400).send("ERROR : " + err.message);
   }
 });
 
@@ -68,16 +103,27 @@ app.patch("/user/:userId", async (req, res) => {
   const data = req.body;
 
   try {
-    const ALLOWED_UPDATES = ["firstName", "lastName", "password", "age", "gender", "about", "photoUrl", "skills"];
-    
-    const isUpdateAllowed = Object.keys(data).every((k) => ALLOWED_UPDATES.includes(k));
+    const ALLOWED_UPDATES = [
+      "firstName",
+      "lastName",
+      "password",
+      "age",
+      "gender",
+      "about",
+      "photoUrl",
+      "skills",
+    ];
+
+    const isUpdateAllowed = Object.keys(data).every((k) =>
+      ALLOWED_UPDATES.includes(k),
+    );
 
     if (!isUpdateAllowed) {
       return res.status(400).send("invalid updates!!");
     }
-    await User.findByIdAndUpdate(userId, data, {runValidators: true});
+    await User.findByIdAndUpdate(userId, data, { runValidators: true });
     res.send("successfully updated!!");
-  } catch (err){
+  } catch (err) {
     res.status(400).send("unable to update user data" + err);
   }
 
