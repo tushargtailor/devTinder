@@ -37,10 +37,9 @@ app.get("/user", async (req, res) => {
 });
 
 app.get("/feed", async (req, res) => {
-
   const users = await User.find({});
   res.send(users);
-})
+});
 
 app.post("/signup", async (req, res) => {
   const user = new User(req.body);
@@ -49,8 +48,48 @@ app.post("/signup", async (req, res) => {
     await user.save();
     res.send("User added succesfully!!");
   } catch (error) {
+    res.status(400).send("unable to store user data" + error);
+  }
+});
+
+app.delete("/user", async (req, res) => {
+  const userId = req.body.userId;
+
+  try {
+    await User.findByIdAndDelete(userId);
+    res.send("user deleted successfully");
+  } catch (err) {
     res.status(400).send("unable to store user data");
   }
+});
+
+app.patch("/user/:userId", async (req, res) => {
+  const userId = req.params?.userId;
+  const data = req.body;
+
+  try {
+    const ALLOWED_UPDATES = ["firstName", "lastName", "password", "age", "gender", "about", "photoUrl", "skills"];
+    
+    const isUpdateAllowed = Object.keys(data).every((k) => ALLOWED_UPDATES.includes(k));
+
+    if (!isUpdateAllowed) {
+      return res.status(400).send("invalid updates!!");
+    }
+    await User.findByIdAndUpdate(userId, data, {runValidators: true});
+    res.send("successfully updated!!");
+  } catch (err){
+    res.status(400).send("unable to update user data" + err);
+  }
+
+  // const userEmail = req.body.emailId
+  // const data = req.body
+
+  // try {
+  //   await User.findOneAndUpdate({ emailId: userEmail }, {$set : data})
+  //   res.send("update success by findone")
+  // } catch (error) {
+  //   res.status(400).send("unable to store user data");
+  // }
 });
 
 connectDB()
