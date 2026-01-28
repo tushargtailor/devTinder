@@ -3,45 +3,14 @@ const connectDB = require("./config/database");
 const User = require("./models/user");
 const { validateSignUpData } = require("./utils/validation");
 const bcrypt = require("bcrypt");
+const cookie = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middlewares/auth");
 
 const app = express();
 
 app.use(express.json());
-
-app.get("/user", async (req, res) => {
-  const userEmail = req.body.emailId;
-
-  const users = await User.findOne({ emailId: userEmail });
-
-  try {
-    if (!users) {
-      res.status(404).send("user not found");
-    } else {
-      res.send(users);
-    }
-  } catch (error) {
-    res.status(400).send("something went wrong");
-  }
-
-  // const userEmail = req.body.emailId;
-
-  // const users = await User.find({ emailId: userEmail });
-
-  // try {
-  //   if (!users) {
-  //     res.status(404).send("something went wrong");
-  //   } else {
-  //     res.send(users);
-  //   }
-  // } catch (error) {
-  //   res.status(404).send("something went wrong");
-  // }
-});
-
-app.get("/feed", async (req, res) => {
-  const users = await User.find({});
-  res.send(users);
-});
+app.use(cookie());
 
 app.post("/signup", async (req, res) => {
   try {
@@ -66,7 +35,6 @@ app.post("/signup", async (req, res) => {
 });
 
 app.post("/login", async (req, res) => {
-  
   try {
     const { emailId, password } = req.body;
     const user = await User.findOne({ emailId: emailId });
@@ -77,65 +45,30 @@ app.post("/login", async (req, res) => {
 
     const passwordMatch = await bcrypt.compare(password, user.password);
 
-    if (!passwordMatch) {
-      throw new Error("Invalid credentials");
+    if (passwordMatch) {
+      const token = jwt.sign({ _id: user._id }, "DEVTINDER@2026$TART", {
+        expiresIn: "7d",
+      });
+      res.cookie("token", token, {
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+      res.send("Login Successful!!");
     } else {
-      res.send("Login Successfull");
+      throw new Error("Invalid credentials");
     }
   } catch (err) {
     res.status(400).send("ERROR : " + err.message);
   }
 });
 
-app.delete("/user", async (req, res) => {
-  const userId = req.body.userId;
-
+app.get("/profile", userAuth, async (req, res) => {
   try {
-    await User.findByIdAndDelete(userId);
-    res.send("user deleted successfully");
+    const user = req.user;
+    res.send(user);
   } catch (err) {
-    res.status(400).send("unable to store user data");
+    res.status(400).send("ERROR : " + err.message);
   }
-});
-
-app.patch("/user/:userId", async (req, res) => {
-  const userId = req.params?.userId;
-  const data = req.body;
-
-  try {
-    const ALLOWED_UPDATES = [
-      "firstName",
-      "lastName",
-      "password",
-      "age",
-      "gender",
-      "about",
-      "photoUrl",
-      "skills",
-    ];
-
-    const isUpdateAllowed = Object.keys(data).every((k) =>
-      ALLOWED_UPDATES.includes(k),
-    );
-
-    if (!isUpdateAllowed) {
-      return res.status(400).send("invalid updates!!");
-    }
-    await User.findByIdAndUpdate(userId, data, { runValidators: true });
-    res.send("successfully updated!!");
-  } catch (err) {
-    res.status(400).send("unable to update user data" + err);
-  }
-
-  // const userEmail = req.body.emailId
-  // const data = req.body
-
-  // try {
-  //   await User.findOneAndUpdate({ emailId: userEmail }, {$set : data})
-  //   res.send("update success by findone")
-  // } catch (error) {
-  //   res.status(400).send("unable to store user data");
-  // }
 });
 
 connectDB()
